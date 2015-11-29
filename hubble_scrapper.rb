@@ -2,14 +2,15 @@ require 'nokogiri'
 require 'byebug'
 require 'net/http'
 require "open-uri"
+require "httparty"
 
 @base_url = 'hubblesite.org'
-@download_urls = ['/gallery/album/entire']
+@download_urls = ['/gallery/wallpaper']
 @image_page_urls = []
 @processed_urls = []
 
 def visit_gallery_page url
-  res = Net::HTTP.get(@base_url, url)
+	res = HTTParty.get("http://#{@base_url}#{url}")
   html_doc = Nokogiri::HTML(res)
   image_links = html_doc.css("#ListBlock a").map{|l| l.attr("href")}
   page_links = html_doc.css("a.next-page").map{|l| l.attr("href")}
@@ -23,6 +24,7 @@ def visit_gallery_page url
 end
 
 def visit_image_page url
+  puts url
   res = fetch(url)
   html_doc = Nokogiri::HTML(res.body) if res.is_a?(Net::HTTPSuccess)
 
@@ -34,8 +36,7 @@ def visit_image_page url
 
   #style one 
   if link.nil?
-    link = html_doc.css(".inline-links").last
-		byebug if link.nil?
+    link = html_doc.css(".inline-links").first.css("a").last
     res = fetch(link.attr("href"))
     html_doc = Nokogiri::HTML(res.body) if res.is_a?(Net::HTTPSuccess)
 
@@ -63,6 +64,7 @@ end
 
 def fetch(uri_str, limit = 10)
 	uri_str = "http://#{@base_url}#{uri_str}"
+  puts uri_str
 
   # You should choose better exception.
   raise ArgumentError, 'HTTP redirect too deep' if limit == 0
@@ -82,7 +84,6 @@ end
 
 while !@download_urls.empty?
   url = @download_urls.shift
-  puts url
   visit_gallery_page url
 end
 
