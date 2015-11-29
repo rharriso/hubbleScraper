@@ -23,14 +23,19 @@ def visit_gallery_page url
 end
 
 def visit_image_page url
-  res = fetch("http://#{@base_url}#{url}")
+  res = fetch(url)
   html_doc = Nokogiri::HTML(res.body) if res.is_a?(Net::HTTPSuccess)
-  link = html_doc.css(".button-holder:first a:last").last
+
+  begin
+    link = html_doc.css(".button-holder").first.css("a").last
+  rescue Exception => e
+    link = nil
+  end
 
   #style one 
   if link.nil?
-    link = html_doc.css(".inline-links a:last").last
-		return if link.nil?
+    link = html_doc.css(".inline-links").last
+		byebug if link.nil?
     res = fetch(link.attr("href"))
     html_doc = Nokogiri::HTML(res.body) if res.is_a?(Net::HTTPSuccess)
 
@@ -42,21 +47,22 @@ def visit_image_page url
   end
 
   alt = img.attr("alt")
-  fName = alt.gsub(/\s/, "-")+".jpg"
   src = img.attr("src")
-  puts src, fName
-  resp = fetch(src)
+  if alt.nil?
+    fName = File.basename(src)
+  else
+    fName = alt.gsub(/\s/, "-")+".jpg"
+  end
 
 	File.open("./dest/#{fName}", "wb") do |file|
-		resp.read_body do |segment|
-		  file.write segment
+    open(src) do |f|
+		  file.write f.read
     end
 	end
 end
 
 def fetch(uri_str, limit = 10)
 	uri_str = "http://#{@base_url}#{uri_str}"
-  puts uri_str
 
   # You should choose better exception.
   raise ArgumentError, 'HTTP redirect too deep' if limit == 0
@@ -67,10 +73,9 @@ def fetch(uri_str, limit = 10)
   case response
   when Net::HTTPSuccess     then response
   when Net::HTTPRedirection
-    puts "Location", response['location']
+    puts "Redirect Location: #{response['location']}"
     fetch(response['location'], limit - 1)
   else
-    puts url
     response.error!
   end
 end
